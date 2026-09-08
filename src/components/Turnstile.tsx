@@ -90,6 +90,8 @@ export function Turnstile({
     loadScript()
       .then(() => {
         if (cancelled || !containerRef.current || !window.turnstile) return
+        if (widgetId.current) return // never render twice into the same node
+        containerRef.current.innerHTML = ''
         try {
           widgetId.current = window.turnstile.render(containerRef.current, {
             sitekey: SITE_KEY,
@@ -101,7 +103,12 @@ export function Turnstile({
             },
             'error-callback': (code) => {
               // eslint-disable-next-line no-console
-              console.error('[Turnstile] error', code, 'on', window.location.hostname)
+              console.error(
+                '[Turnstile] error',
+                code,
+                'on',
+                window.location.hostname,
+              )
               setErrorCode(code ?? 'unknown')
               report(null)
             },
@@ -134,17 +141,29 @@ export function Turnstile({
 
   if (!SITE_KEY) return null
   return (
-    <div className="mt-2 flex flex-col items-center gap-1">
+    <div className="mt-2 flex flex-col items-center gap-1.5">
       <div
         ref={containerRef}
         className="flex min-h-[65px] justify-center"
         aria-label="Cloudflare Turnstile challenge"
       />
       {errorCode && (
-        <p className="text-center text-xs text-danger">
-          Turnstile error <code>{errorCode}</code>. Check the browser console for
-          details.
-        </p>
+        <div className="text-center text-xs text-danger">
+          <p>
+            Verification failed (code <code>{errorCode}</code>). This is usually a
+            browser privacy setting, extension, or VPN blocking Cloudflare.
+          </p>
+          <button
+            type="button"
+            className="mt-1 underline hover:no-underline"
+            onClick={() => {
+              setErrorCode(null)
+              resetTurnstile()
+            }}
+          >
+            Try again
+          </button>
+        </div>
       )}
     </div>
   )
