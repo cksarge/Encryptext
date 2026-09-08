@@ -14,6 +14,11 @@
 
 create extension if not exists pg_cron;
 
+-- Safe to re-run: drop any previously scheduled version first.
+select cron.unschedule(jobid)
+from cron.job
+where jobname in ('encryptext-expire-messages', 'encryptext-expire-read-messages');
+
 select cron.schedule(
   'encryptext-expire-messages',
   '* * * * *',
