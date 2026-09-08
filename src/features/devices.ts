@@ -11,6 +11,10 @@ export function useMyDevices() {
   return useQuery({
     queryKey: [...KEY, user?.id],
     enabled: Boolean(user),
+    // The device row is created moments after first sign-in; don't serve a
+    // stale empty list from before it existed.
+    staleTime: 0,
+    refetchOnMount: 'always',
     queryFn: async () => {
       const { data, error } = await supabase
         .from('devices')

@@ -34,6 +34,19 @@ export function SettingsModal({
   const revoke = useRevokeDevice()
   const thisDeviceId = currentDevice()?.deviceId
 
+  // Always show at least this device, even if the server list is slow/failed.
+  const serverDevices = devices.data ?? []
+  const deviceRows: { id: string; label: string; synthetic: boolean }[] = [
+    ...(thisDeviceId && !serverDevices.some((d) => d.id === thisDeviceId)
+      ? [{ id: thisDeviceId, label: 'This device', synthetic: true }]
+      : []),
+    ...serverDevices.map((d) => ({
+      id: d.id,
+      label: d.label,
+      synthetic: false,
+    })),
+  ]
+
   const [notifOn, setNotifOn] = useState(notificationsEnabled())
   const [passkeySupported, setPasskeySupported] = useState(false)
   const [passkeySaved, setPasskeySaved] = useState(hasPasskey())
@@ -81,32 +94,53 @@ export function SettingsModal({
 
         <section>
           <h3 className="mb-2 font-medium">Devices</h3>
-          <ul className="space-y-2">
-            {(devices.data ?? []).map((d) => (
-              <li
-                key={d.id}
-                className="flex items-center gap-3 rounded-lg border border-border px-3 py-2"
+          {deviceRows.length === 0 && devices.isLoading ? (
+            <p className="text-xs text-muted-foreground">Loading devices…</p>
+          ) : deviceRows.length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              No devices found for this account yet.
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {deviceRows.map((d) => (
+                <li
+                  key={d.id}
+                  className="flex items-center gap-3 rounded-lg border border-border px-3 py-2"
+                >
+                  <Laptop className="size-4 shrink-0 text-muted-foreground" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate">
+                      {d.label}
+                      {d.id === thisDeviceId && (
+                        <span className="ml-1 text-xs text-primary">
+                          (this device)
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                  {d.id !== thisDeviceId && !d.synthetic && (
+                    <button
+                      className="shrink-0 text-xs text-danger hover:underline"
+                      onClick={() => revoke.mutate(d.id)}
+                    >
+                      Revoke
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+          {devices.isError && (
+            <p className="mt-1 text-xs text-danger">
+              Couldn’t load the full device list.{' '}
+              <button
+                className="underline hover:no-underline"
+                onClick={() => void devices.refetch()}
               >
-                <Laptop className="size-4 shrink-0 text-muted-foreground" />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate">
-                    {d.label}
-                    {d.id === thisDeviceId && (
-                      <span className="ml-1 text-xs text-primary">(this device)</span>
-                    )}
-                  </p>
-                </div>
-                {d.id !== thisDeviceId && (
-                  <button
-                    className="text-xs text-danger hover:underline"
-                    onClick={() => revoke.mutate(d.id)}
-                  >
-                    Revoke
-                  </button>
-                )}
-              </li>
-            ))}
-          </ul>
+                Retry
+              </button>
+            </p>
+          )}
         </section>
 
         <section className="flex items-center justify-between">
