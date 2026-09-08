@@ -69,6 +69,14 @@ export interface OlmApi {
 
 const Olm = OlmModule as unknown as OlmApi
 
+// libolm's `init()` runs `OLM_OPTIONS = opts` without ever declaring the
+// variable. That is a silent global write in a plain <script>, but a
+// ReferenceError inside an ES-module (strict-mode) bundle — which is how Vite
+// ships it in production. Pre-create the global so the assignment is legal.
+if (!('OLM_OPTIONS' in globalThis)) {
+  ;(globalThis as Record<string, unknown>).OLM_OPTIONS = undefined
+}
+
 let ready: Promise<OlmApi> | null = null
 
 /**

@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from 'react'
 import { ensureDevice } from '@/crypto'
+import { hasPasskey, refreshWrappedToken } from '@/auth/passkey'
 import { supabase } from '@/lib/supabase'
 import type { ProfileRow } from '@/types/db'
 
@@ -60,6 +61,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
       setSession(next)
       setLoading(false)
+      // Keep the passkey-wrapped refresh token current as Supabase rotates it.
+      if (next?.refresh_token && hasPasskey()) {
+        void refreshWrappedToken(next.refresh_token)
+      }
     })
 
     return () => {
@@ -90,7 +95,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user, loadProfile])
 
   const signOut = useCallback(async () => {
-    await supabase.auth.signOut()
+    // 'local' so the refresh token isn't revoked server-side — a saved passkey
+    // needs it to still be valid on the next sign-in.
+    await supabase.auth.signOut({ scope: 'local' })
     setProfile(null)
     setDeviceReady(false)
   }, [])

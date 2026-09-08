@@ -9,6 +9,13 @@
  * assertion, re-derives the secret, decrypts the refresh token, and calls
  * `supabase.auth.setSession`.
  *
+ * Supabase rotates refresh tokens, so the wrapped copy has to be kept current:
+ * after a register/login the derived AES key is held in memory for the tab, and
+ * `refreshWrappedToken` re-wraps the latest token on every token refresh without
+ * another biometric prompt. Combined with a local-scope sign-out (which does not
+ * revoke the token server-side), the stored token stays valid across a
+ * log-out / log-back-in.
+ *
  * Because the secret only exists after a successful biometric/PIN check on this
  * device, the stored refresh token is useless to anyone who copies localStorage.
  */
@@ -28,6 +35,9 @@ interface StoredPasskey {
   email: string
 }
 
+/** Derived AES key for this tab's lifetime, so re-wraps need no new ceremony. */
+let liveKey: CryptoKey | null = null
+
 function read(): StoredPasskey | null {
   try {
     const raw = localStorage.getItem(STORE_KEY)
@@ -35,6 +45,10 @@ function read(): StoredPasskey | null {
   } catch {
     return null
   }
+}
+
+function write(record: StoredPasskey): void {
+  localStorage.setItem(STORE_KEY, JSON.stringify(record))
 }
 
 export function hasPasskey(): boolean {
@@ -46,6 +60,7 @@ export function passkeyEmail(): string | null {
 }
 
 export function clearPasskey(): void {
+  liveKey = null
   try {
     localStorage.removeItem(STORE_KEY)
   } catch {
@@ -110,6 +125,38 @@ function prfSecret(cred: PublicKeyCredential): ArrayBuffer {
   ) as ArrayBuffer
 }
 
+async function wrapToken(
+  key: CryptoKey,
+  refreshToken: string,
+): Promise<{ ciphertext: string; iv: string }> {
+  const iv = randomBytes(12)
+  const cipher = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv },
+    key,
+    new TextEncoder().encode(refreshToken),
+  )
+  return {
+    ciphertext: bytesToBase64(new Uint8Array(cipher)),
+    iv: bytesToBase64(iv),
+  }
+}
+
+/**
+ * Re-encrypt the latest refresh token under the in-memory key. No-op when no
+ * passkey login/registration has happened in this tab. Called on every Supabase
+ * token refresh so the stored copy never goes stale.
+ */
+export async function refreshWrappedToken(refreshToken: string): Promise<void> {
+  const record = read()
+  if (!liveKey || !record || !refreshToken) return
+  try {
+    const { ciphertext, iv } = await wrapToken(liveKey, refreshToken)
+    write({ ...record, ciphertext, iv })
+  } catch {
+    /* leave the previous wrapped token in place */
+  }
+}
+
 /**
  * Register a passkey for the currently-signed-in user and wrap their refresh
  * token with it. Must be called while a session is active.
@@ -159,28 +206,27 @@ export async function registerPasskey(): Promise<void> {
   if (!asserted) throw new Error('Passkey verification was cancelled.')
 
   const wrapSalt = randomBytes(16)
-  const iv = randomBytes(12)
   const key = await deriveKey(prfSecret(asserted), wrapSalt)
-  const cipher = await crypto.subtle.encrypt(
-    { name: 'AES-GCM', iv },
-    key,
-    new TextEncoder().encode(session.refresh_token),
-  )
+  const { ciphertext, iv } = await wrapToken(key, session.refresh_token)
 
-  const record: StoredPasskey = {
+  write({
     credentialId: bytesToBase64(new Uint8Array(created.rawId)),
     wrapSalt: bytesToBase64(wrapSalt),
-    ciphertext: bytesToBase64(new Uint8Array(cipher)),
-    iv: bytesToBase64(iv),
+    ciphertext,
+    iv,
     email,
-  }
-  localStorage.setItem(STORE_KEY, JSON.stringify(record))
+  })
+  liveKey = key
 }
 
 /** Assert the stored passkey and restore the Supabase session from it. */
 export async function loginWithPasskey(): Promise<void> {
   const record = read()
-  if (!record) throw new Error('No passkey saved on this device.')
+  if (!record) {
+    throw new Error(
+      'No passkey is saved on this device. Sign in with your password, then add one in Settings.',
+    )
+  }
 
   const asserted = (await navigator.credentials.get({
     publicKey: {
@@ -207,15 +253,24 @@ export async function loginWithPasskey(): Promise<void> {
     refreshToken = new TextDecoder().decode(plain)
   } catch {
     clearPasskey()
-    throw new Error('Stored passkey data could not be read. Sign in with your password.')
+    throw new Error(
+      'This passkey’s stored data is unreadable. Sign in with your password and re-add it.',
+    )
   }
 
-  const { error } = await supabase.auth.setSession({
+  const { data, error } = await supabase.auth.setSession({
     access_token: '',
     refresh_token: refreshToken,
   })
-  if (error) {
-    clearPasskey()
-    throw new Error('That passkey session has expired. Sign in with your password.')
+  if (error || !data.session) {
+    // Keep the passkey — the credential is fine, only the wrapped token aged out.
+    throw new Error(
+      'Your saved passkey session has expired. Sign in with your password, then re-add the passkey in Settings.',
+    )
   }
+
+  // Session is live again — keep the key and immediately re-wrap the freshly
+  // rotated token so the next passkey sign-in works.
+  liveKey = key
+  await refreshWrappedToken(data.session.refresh_token)
 }

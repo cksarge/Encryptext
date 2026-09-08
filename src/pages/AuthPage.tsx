@@ -1,4 +1,4 @@
-import { useCallback, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Check, Fingerprint, Loader2, X } from 'lucide-react'
 import { AuthCard } from '@/components/AuthCard'
@@ -17,11 +17,7 @@ import {
   normalizeUsername,
   passwordChecks,
 } from '@/lib/utils'
-import {
-  hasPasskey,
-  loginWithPasskey,
-  passkeyEmail,
-} from '@/auth/passkey'
+import { isPasskeySupported, loginWithPasskey } from '@/auth/passkey'
 import { useUsernameAvailability } from '@/auth/useUsernameAvailability'
 
 type Mode = 'login' | 'signup'
@@ -95,8 +91,13 @@ function LoginForm() {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState<'password' | 'passkey' | null>(null)
   const [captcha, setCaptcha] = useState<string | null>(null)
+  const [passkeySupported, setPasskeySupported] = useState(false)
   const onCaptcha = useCallback((t: string | null) => setCaptcha(t), [])
   const captchaOk = !isTurnstileEnabled() || Boolean(captcha)
+
+  useEffect(() => {
+    void isPasskeySupported().then(setPasskeySupported)
+  }, [])
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -172,7 +173,7 @@ function LoginForm() {
         Log in
       </Button>
 
-      {hasPasskey() && (
+      {passkeySupported && (
         <>
           <div className="relative py-1 text-center text-xs text-muted-foreground">
             <span className="relative z-10 bg-surface px-2">or</span>
@@ -185,11 +186,8 @@ function LoginForm() {
             loading={busy === 'passkey'}
             onClick={onPasskey}
           >
-            <Fingerprint className="size-4" />
+            <Fingerprint className="size-4 shrink-0" />
             Sign in with a passkey
-            {passkeyEmail() && (
-              <span className="text-muted-foreground">({passkeyEmail()})</span>
-            )}
           </Button>
         </>
       )}

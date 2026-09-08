@@ -10,7 +10,13 @@ import {
   requestNotifications,
   setNotificationsPreference,
 } from '@/features/notifications'
-import { hasPasskey, isPasskeySupported, registerPasskey } from '@/auth/passkey'
+import {
+  clearPasskey,
+  hasPasskey,
+  isPasskeySupported,
+  passkeyEmail,
+  registerPasskey,
+} from '@/auth/passkey'
 import { Button } from '@/components/ui/primitives'
 import { Copyright } from '@/components/Copyright'
 import { Modal } from '@/components/ui/Modal'
@@ -30,10 +36,28 @@ export function SettingsModal({
 
   const [notifOn, setNotifOn] = useState(notificationsEnabled())
   const [passkeySupported, setPasskeySupported] = useState(false)
+  const [passkeySaved, setPasskeySaved] = useState(hasPasskey())
 
   useEffect(() => {
     void isPasskeySupported().then(setPasskeySupported)
   }, [])
+
+  const addPasskey = () => {
+    void registerPasskey()
+      .then(() => setPasskeySaved(true))
+      .catch(() => undefined)
+  }
+
+  const removePasskey = () => {
+    if (
+      confirm(
+        'Remove the passkey from this device? You’ll sign in with your password.',
+      )
+    ) {
+      clearPasskey()
+      setPasskeySaved(false)
+    }
+  }
 
   const toggleNotifications = async () => {
     if (notifOn) {
@@ -104,21 +128,35 @@ export function SettingsModal({
           </Button>
         </section>
 
-        {passkeySupported && !hasPasskey() && (
-          <section className="flex items-center justify-between">
-            <div>
+        {passkeySupported && (
+          <section className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
               <h3 className="font-medium">Passkey</h3>
-              <p className="text-xs text-muted-foreground">
-                Sign in without a password on this device.
+              <p className="truncate text-xs text-muted-foreground">
+                {passkeySaved
+                  ? `Saved for ${passkeyEmail() ?? 'this account'} on this device.`
+                  : 'Sign in without a password on this device.'}
               </p>
             </div>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => void registerPasskey().catch(() => undefined)}
-            >
-              Add
-            </Button>
+            {passkeySaved ? (
+              <Button
+                size="sm"
+                variant="secondary"
+                className="shrink-0 text-danger"
+                onClick={removePasskey}
+              >
+                Remove
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                variant="secondary"
+                className="shrink-0"
+                onClick={addPasskey}
+              >
+                Add
+              </Button>
+            )}
           </section>
         )}
 
