@@ -180,20 +180,13 @@ function LoginForm() {
         </>
       )}
 
-      <p className="text-center text-xs text-muted-foreground">
-        {emailFlowsDisabled ? (
-          <span
-            className="cursor-not-allowed opacity-50"
-            title="Password reset needs email, which isn’t configured yet."
-          >
-            Forgot your password?
-          </span>
-        ) : (
+      {!emailFlowsDisabled && (
+        <p className="text-center text-xs text-muted-foreground">
           <Link to="/auth/reset" className="hover:text-foreground">
             Forgot your password?
           </Link>
-        )}
-      </p>
+        </p>
+      )}
 
       <Turnstile onToken={onCaptcha} />
     </form>
