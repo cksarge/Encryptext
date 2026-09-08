@@ -5,6 +5,7 @@ import { AuthCard } from '@/components/AuthCard'
 import { Button, FieldError, Input, Label } from '@/components/ui/primitives'
 import { Turnstile, isTurnstileEnabled } from '@/components/Turnstile'
 import { supabase } from '@/lib/supabase'
+import { emailFlowsDisabled } from '@/lib/site'
 import { cn, isValidUsername, normalizeUsername } from '@/lib/utils'
 import {
   hasPasskey,
@@ -180,9 +181,18 @@ function LoginForm() {
       )}
 
       <p className="text-center text-xs text-muted-foreground">
-        <Link to="/auth/reset" className="hover:text-foreground">
-          Forgot your password?
-        </Link>
+        {emailFlowsDisabled ? (
+          <span
+            className="cursor-not-allowed opacity-50"
+            title="Password reset needs email, which isn’t configured yet."
+          >
+            Forgot your password?
+          </span>
+        ) : (
+          <Link to="/auth/reset" className="hover:text-foreground">
+            Forgot your password?
+          </Link>
+        )}
       </p>
 
       <Turnstile onToken={onCaptcha} />
@@ -370,7 +380,9 @@ function SignupForm() {
         Create account
       </Button>
       <p className="text-center text-xs text-muted-foreground">
-        We’ll email you a 6-digit code to confirm your address.
+        {emailFlowsDisabled
+          ? 'You’ll be signed in right after this.'
+          : 'We’ll email you a 6-digit code to confirm your address.'}
       </p>
 
       <Turnstile onToken={onCaptcha} />

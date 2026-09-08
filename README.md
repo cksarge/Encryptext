@@ -95,6 +95,10 @@ Server-side verification of the Cloudflare Turnstile token (in a Supabase Auth
 hook or Edge Function) still needs wiring up; the widget and client gating are in
 place and activate when `VITE_TURNSTILE_SITE_KEY` is set.
 
+## License
+
+[Apache License 2.0](LICENSE).
+
 ---
 
 © 2026 Carter Kasarjian. All rights reserved.

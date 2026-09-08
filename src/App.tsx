@@ -6,6 +6,7 @@ import { ThemeProvider } from '@/lib/theme'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { ScrollToTop } from '@/components/ScrollToTop'
 import { isSupabaseConfigured } from '@/lib/supabase'
+import { emailFlowsDisabled } from '@/lib/site'
 import { RedirectIfAuthed, RequireAuth } from '@/routes/guards'
 import { MissingConfig } from '@/pages/MissingConfig'
 import { Landing } from '@/pages/Landing'
@@ -64,9 +65,13 @@ function AppRoutes() {
       <Route
         path="/auth/reset"
         element={
-          <RedirectIfAuthed>
-            <ResetPassword />
-          </RedirectIfAuthed>
+          emailFlowsDisabled ? (
+            <Navigate to="/auth?mode=login" replace />
+          ) : (
+            <RedirectIfAuthed>
+              <ResetPassword />
+            </RedirectIfAuthed>
+          )
         }
       />
       <Route
