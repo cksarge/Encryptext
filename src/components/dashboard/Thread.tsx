@@ -27,7 +27,10 @@ export function Thread({
 }) {
   const { user } = useAuth()
   const peer = conversation.peer
-  const { messages, ready, send } = useThread(conversation.id, peer?.id ?? '')
+  const { messages, ready, send, readCountdowns, viewing } = useThread(
+    conversation.id,
+    peer?.id ?? '',
+  )
   const leave = useLeaveConversation()
   const [menuOpen, setMenuOpen] = useState(false)
   const [safetyOpen, setSafetyOpen] = useState(false)
@@ -121,7 +124,14 @@ export function Thread({
             read it.
           </EmptyNote>
         ) : (
-          messages.map((m) => <Bubble key={m.id} message={m} />)
+          messages.map((m) => (
+            <Bubble
+              key={m.id}
+              message={m}
+              secondsLeft={readCountdowns[m.id]}
+              paused={!viewing}
+            />
+          ))
         )}
       </div>
 
@@ -145,7 +155,15 @@ function EmptyNote({ children }: { children: ReactNode }) {
   )
 }
 
-function Bubble({ message }: { message: ThreadMessage }) {
+function Bubble({
+  message,
+  secondsLeft,
+  paused,
+}: {
+  message: ThreadMessage
+  secondsLeft: number | undefined
+  paused: boolean
+}) {
   const mine = message.mine
   return (
     <div className={cn('flex', mine ? 'justify-end' : 'justify-start')}>
@@ -173,8 +191,8 @@ function Bubble({ message }: { message: ThreadMessage }) {
           )}
         >
           <span>{new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-          {message.expiresAt ? (
-            <CountdownRing expiresAt={message.expiresAt} />
+          {!mine && secondsLeft != null ? (
+            <CountdownRing secondsLeft={secondsLeft} paused={paused} />
           ) : mine && message.firstReadAt ? (
             <span>Read</span>
           ) : null}

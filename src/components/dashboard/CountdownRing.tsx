@@ -1,11 +1,17 @@
-import { useCountdown } from '@/lib/hooks'
-
 const TOTAL = 30
 
-/** Small ring that drains over the 30s window after a message is read. */
-export function CountdownRing({ expiresAt }: { expiresAt: string }) {
-  const until = new Date(expiresAt).getTime()
-  const secondsLeft = useCountdown(until)
+/**
+ * Ring that drains over the 30 seconds a message is *viewed* after being read.
+ * The parent owns the clock (it only decrements while the tab is visible), so
+ * when `paused` the ring simply holds.
+ */
+export function CountdownRing({
+  secondsLeft,
+  paused = false,
+}: {
+  secondsLeft: number
+  paused?: boolean
+}) {
   const fraction = Math.min(1, Math.max(0, secondsLeft / TOTAL))
   const radius = 7
   const circumference = 2 * Math.PI * radius
@@ -13,7 +19,11 @@ export function CountdownRing({ expiresAt }: { expiresAt: string }) {
   return (
     <span
       className="inline-flex items-center gap-1 text-[11px] tabular-nums text-muted-foreground"
-      title={`Disappears in ${secondsLeft}s`}
+      title={
+        paused
+          ? `Paused — disappears ${secondsLeft}s after you look at it`
+          : `Disappears in ${secondsLeft}s`
+      }
     >
       <svg width="18" height="18" viewBox="0 0 18 18" className="-rotate-90">
         <circle
@@ -35,10 +45,14 @@ export function CountdownRing({ expiresAt }: { expiresAt: string }) {
           strokeLinecap="round"
           strokeDasharray={circumference}
           strokeDashoffset={circumference * (1 - fraction)}
-          className="text-primary transition-[stroke-dashoffset] duration-250 ease-linear"
+          className={
+            paused
+              ? 'text-muted-foreground'
+              : 'text-primary transition-[stroke-dashoffset] duration-250 ease-linear'
+          }
         />
       </svg>
-      {secondsLeft}s
+      {paused ? 'paused' : `${secondsLeft}s`}
     </span>
   )
 }

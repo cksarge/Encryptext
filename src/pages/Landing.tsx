@@ -22,7 +22,7 @@ const points = [
   {
     icon: Timer,
     title: 'Messages don’t linger',
-    body: 'Thirty seconds after you read a message it is deleted from the server. The sender can delete anytime. Anything still unread is wiped after 24 hours.',
+    body: 'Thirty seconds after you’ve looked at a message it’s deleted from the server — the timer pauses whenever you’re on another tab. The sender can delete anytime; anything still unread is wiped after 24 hours.',
   },
   {
     icon: Eye,

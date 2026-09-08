@@ -8,9 +8,13 @@ import {
   rememberSent,
 } from '@/crypto'
 import { useAuth } from '@/auth/AuthProvider'
+import { useInterval } from '@/lib/hooks'
 import { sleep } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
 import type { MessagePayloadRow, MessageRow, OlmMessageType } from '@/types/db'
+
+/** Seconds a message stays visible after it has been read (while on screen). */
+const VIEW_WINDOW_MS = 30_000
 
 export interface ThreadMessage {
   id: string
@@ -34,6 +38,10 @@ function toBase(row: MessageRow, myUserId: string): ThreadMessage {
     firstReadAt: row.first_read_at,
     expiresAt: row.expires_at,
   }
+}
+
+function tabVisible(): boolean {
+  return typeof document === 'undefined' || document.visibilityState === 'visible'
 }
 
 async function fetchMyPayload(
@@ -60,19 +68,39 @@ export function useThread(conversationId: string, peerUserId: string) {
   const myUserId = user!.id
   const [messages, setMessages] = useState<ThreadMessage[]>([])
   const [ready, setReady] = useState(false)
+  const [viewing, setViewing] = useState(tabVisible)
+  /** Per-message seconds left in the on-screen view window. */
+  const [readCountdowns, setReadCountdowns] = useState<Record<string, number>>({})
+
   const purgeTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>())
+  /** Per-message accumulated *visible* time since the message was read. */
+  const readClocks = useRef(new Map<string, { accumMs: number; lastMs: number }>())
+
+  useEffect(() => {
+    const onChange = () => setViewing(tabVisible())
+    document.addEventListener('visibilitychange', onChange)
+    return () => document.removeEventListener('visibilitychange', onChange)
+  }, [])
 
   const upsert = useCallback((next: ThreadMessage) => {
     setMessages((prev) => {
       const idx = prev.findIndex((m) => m.id === next.id)
       const merged = idx >= 0 ? { ...prev[idx], ...next } : next
-      const list = idx >= 0 ? prev.map((m, i) => (i === idx ? merged : m)) : [...prev, merged]
+      const list =
+        idx >= 0 ? prev.map((m, i) => (i === idx ? merged : m)) : [...prev, merged]
       return list.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
     })
   }, [])
 
   const remove = useCallback((id: string) => {
     setMessages((prev) => prev.filter((m) => m.id !== id))
+    setReadCountdowns((c) => {
+      if (!(id in c)) return c
+      const next = { ...c }
+      delete next[id]
+      return next
+    })
+    readClocks.current.delete(id)
     void forgetCachedMessage(id)
     const timer = purgeTimers.current.get(id)
     if (timer) {
@@ -81,6 +109,7 @@ export function useThread(conversationId: string, peerUserId: string) {
     }
   }, [])
 
+  /** Coarse server-cap backstop (also the only client purge the sender does). */
   const schedulePurge = useCallback((id: string, expiresAt: string) => {
     if (purgeTimers.current.has(id)) return
     const delay = Math.max(0, new Date(expiresAt).getTime() - Date.now())
@@ -90,6 +119,54 @@ export function useThread(conversationId: string, peerUserId: string) {
     }, delay)
     purgeTimers.current.set(id, timer)
   }, [])
+
+  /**
+   * Begin the 30-seconds-of-viewing countdown for a message the recipient has
+   * read. Capped by the server's own `expires_at` so the ring never promises
+   * more time than the backstop allows.
+   */
+  const startReadClock = useCallback(
+    (id: string, expiresAtIso: string | null) => {
+      if (readClocks.current.has(id)) return
+      const serverLeftMs = expiresAtIso
+        ? Math.max(0, new Date(expiresAtIso).getTime() - Date.now())
+        : VIEW_WINDOW_MS
+      const startLeftMs = Math.min(VIEW_WINDOW_MS, serverLeftMs)
+      readClocks.current.set(id, {
+        accumMs: VIEW_WINDOW_MS - startLeftMs,
+        lastMs: Date.now(),
+      })
+      setReadCountdowns((c) => ({ ...c, [id]: Math.ceil(startLeftMs / 1000) }))
+    },
+    [],
+  )
+
+  // The visible-time ticker: only accrues while the tab is actually shown.
+  useInterval(() => {
+    if (readClocks.current.size === 0) return
+    const now = Date.now()
+    const visible = tabVisible()
+    const updates: Record<string, number> = {}
+    const expired: string[] = []
+
+    for (const [id, clock] of readClocks.current) {
+      const delta = now - clock.lastMs
+      clock.lastMs = now
+      if (visible) clock.accumMs += delta
+      const leftMs = VIEW_WINDOW_MS - clock.accumMs
+      if (leftMs <= 0) expired.push(id)
+      else updates[id] = Math.ceil(leftMs / 1000)
+    }
+
+    if (Object.keys(updates).length) {
+      setReadCountdowns((c) => ({ ...c, ...updates }))
+    }
+    for (const id of expired) {
+      readClocks.current.delete(id)
+      void supabase.rpc('purge_message', { msg: id })
+      remove(id)
+    }
+  }, 250)
 
   const hydrate = useCallback(
     async (row: MessageRow) => {
@@ -126,9 +203,12 @@ export function useThread(conversationId: string, peerUserId: string) {
         upsert({ ...base, status: 'unavailable' })
       }
 
+      // A received message that was already read in a previous session: restart
+      // the on-screen countdown (best effort — visible time isn't persisted).
+      if (!base.mine && base.firstReadAt) startReadClock(row.id, base.expiresAt)
       if (base.expiresAt) schedulePurge(row.id, base.expiresAt)
     },
-    [conversationId, myUserId, schedulePurge, upsert],
+    [conversationId, myUserId, schedulePurge, startReadClock, upsert],
   )
 
   // Initial load ------------------------------------------------------------
@@ -136,6 +216,8 @@ export function useThread(conversationId: string, peerUserId: string) {
     let active = true
     setReady(false)
     setMessages([])
+    setReadCountdowns({})
+    readClocks.current.clear()
 
     ;(async () => {
       const { data } = await supabase
@@ -178,11 +260,14 @@ export function useThread(conversationId: string, peerUserId: string) {
         },
         (payload) => {
           const row = payload.new as MessageRow
-          // Only patch the read/expiry fields; never touch decrypted text.
           setMessages((prev) =>
             prev.map((m) =>
               m.id === row.id
-                ? { ...m, firstReadAt: row.first_read_at, expiresAt: row.expires_at }
+                ? {
+                    ...m,
+                    firstReadAt: row.first_read_at,
+                    expiresAt: row.expires_at,
+                  }
                 : m,
             ),
           )
@@ -204,10 +289,11 @@ export function useThread(conversationId: string, peerUserId: string) {
     return () => {
       void supabase.removeChannel(channel)
     }
-  }, [conversationId, myUserId, hydrate, remove, schedulePurge, upsert])
+  }, [conversationId, hydrate, remove, schedulePurge])
 
-  // Read receipts -> arm the 30s timer -----------------------------------
+  // Read receipts: only fire while the tab is actually being viewed ---------
   useEffect(() => {
+    if (!viewing) return
     const unread = messages.filter(
       (m) => !m.mine && !m.firstReadAt && m.status !== 'pending',
     )
@@ -218,27 +304,30 @@ export function useThread(conversationId: string, peerUserId: string) {
         const { data } = await supabase.rpc('mark_read', { msg: m.id })
         if (cancelled) return
         const expiresAt = (data as string | null) ?? null
-        if (expiresAt) {
-          setMessages((prev) =>
-            prev.map((x) =>
-              x.id === m.id ? { ...x, firstReadAt: new Date().toISOString(), expiresAt } : x,
-            ),
-          )
-          schedulePurge(m.id, expiresAt)
-        }
+        setMessages((prev) =>
+          prev.map((x) =>
+            x.id === m.id
+              ? { ...x, firstReadAt: new Date().toISOString(), expiresAt }
+              : x,
+          ),
+        )
+        startReadClock(m.id, expiresAt)
+        if (expiresAt) schedulePurge(m.id, expiresAt)
       }
     })()
     return () => {
       cancelled = true
     }
-  }, [messages, schedulePurge])
+  }, [messages, viewing, startReadClock, schedulePurge])
 
   // Cleanup all timers on unmount --------------------------------------
   useEffect(() => {
     const timers = purgeTimers.current
+    const clocks = readClocks.current
     return () => {
       for (const t of timers.values()) clearTimeout(t)
       timers.clear()
+      clocks.clear()
     }
   }, [])
 
@@ -296,5 +385,5 @@ export function useThread(conversationId: string, peerUserId: string) {
     [conversationId, myUserId, peerUserId, upsert],
   )
 
-  return { messages, ready, send }
+  return { messages, ready, send, readCountdowns, viewing }
 }

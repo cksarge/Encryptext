@@ -40,7 +40,7 @@ const sections: LegalSection[] = [
   {
     heading: 'How message deletion works',
     paragraphs: [
-      'A message is deleted from our servers when the recipient reads it and 30 seconds pass, or when the sender deletes it. A maintenance job running every 10 seconds removes any already-read message that was not cleared by the sending or receiving device in time.',
+      'A message is deleted from our servers when the recipient opens it and has viewed it for 30 seconds (the timer pauses while their tab is in the background), or when the sender deletes it. A maintenance job running every 10 seconds removes any opened message still present after about 2 minutes, and any message left unread for 24 hours.',
       'An unread message is retained until it is read, the sender deletes it, or 24 hours pass — whichever comes first. After 24 hours it is deleted whether or not it was delivered.',
       'Deletion removes the server-side copy only. Decrypted copies on participants’ devices, screenshots, and forwarded content are outside our control.',
     ],

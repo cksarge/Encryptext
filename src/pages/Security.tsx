@@ -22,8 +22,8 @@ const sections: { heading: string; body: string[] }[] = [
   {
     heading: 'Self-destructing messages',
     body: [
-      'A message is removed from Supabase in one of three situations: the recipient reads it and 30 seconds pass; the sender deletes it; or it has gone unread for 24 hours. Nothing else deletes messages.',
-      'An unread message waits for you for up to 24 hours, then it is deleted whether or not it was ever delivered. Once read, your device deletes it after 30 seconds, and a database job that runs every 10 seconds is the backstop if that device goes offline mid-window.',
+      'A message is removed from Supabase in one of three situations: the recipient opens it and views it for 30 seconds; the sender deletes it; or it has gone unread for 24 hours. Nothing else deletes messages.',
+      'An unread message waits for you for up to 24 hours, then it is deleted whether or not it was ever delivered. Once you open it, your device deletes it after 30 seconds of it being on screen — the countdown pauses whenever you switch to another tab — and a database job that runs every 10 seconds clears it from the server within about 2 minutes of first being opened no matter what.',
     ],
   },
   {
@@ -32,7 +32,7 @@ const sections: { heading: string; body: string[] }[] = [
       'Deletion clears the server copy. It cannot stop the recipient taking a screenshot or keeping their own copy.',
       'Because keys live only on your device, clearing your browser storage or losing the device permanently destroys that message history. There is no backup by design.',
       'The server hands out public keys, so a malicious server could try to substitute one. Compare the safety number with your contact out of band to detect that.',
-      'If the reading device goes offline the instant a message is read, the backstop sweep still removes it within about 40 seconds.',
+      'If the reading device goes offline right after a message is opened, the backstop sweep still removes it within about 2 minutes of it first being opened.',
     ],
   },
 ]

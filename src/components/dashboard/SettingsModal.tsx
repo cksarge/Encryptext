@@ -173,8 +173,16 @@ export function SettingsModal({
             variant={notifOn ? 'secondary' : 'primary'}
             disabled={!notificationsSupported()}
             onClick={toggleNotifications}
+            className="group min-w-[5.25rem]"
           >
-            {notifOn ? 'On' : 'Turn on'}
+            {notifOn ? (
+              <>
+                <span className="group-hover:hidden">On</span>
+                <span className="hidden group-hover:inline">Turn off?</span>
+              </>
+            ) : (
+              'Turn on'
+            )}
           </Button>
         </section>
 

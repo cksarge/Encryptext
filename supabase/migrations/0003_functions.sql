@@ -2,7 +2,7 @@
 -- one re-checks auth.uid() against the row it touches.
 
 -- check_username ------------------------------------------------------------------
-create function public.check_username(name text)
+create or replace function public.check_username(name text)
 returns boolean
 language sql
 security definer
@@ -15,7 +15,7 @@ $$;
 -- claim_prekey ------------------------------------------------------------------
 -- Atomically hand out (and delete) one one-time key for a target device.
 -- Returns zero rows when the pool is empty; the caller then uses the fallback.
-create function public.claim_prekey(target_device uuid)
+create or replace function public.claim_prekey(target_device uuid)
 returns table (key_id text, prekey text)
 language sql
 security definer
@@ -34,7 +34,12 @@ $$;
 
 -- mark_read ------------------------------------------------------------------
 -- The only thing that arms deletion. Recipient-only, one-shot.
-create function public.mark_read(msg uuid)
+--
+-- `expires_at` here is a generous hard backstop: the recipient's client deletes
+-- the message after 30 seconds of it actually being *on screen* (paused while
+-- the tab is hidden). This 2-minute cap only matters if that client dies or
+-- vanishes right after opening the message.
+create or replace function public.mark_read(msg uuid)
 returns timestamptz
 language plpgsql
 security definer
@@ -45,7 +50,7 @@ declare
 begin
   update public.messages m
      set first_read_at = now(),
-         expires_at    = now() + interval '30 seconds',
+         expires_at    = now() + interval '2 minutes',
          delivered_at  = coalesce(m.delivered_at, now())
    where m.id = msg
      and m.first_read_at is null
@@ -59,7 +64,7 @@ $$;
 
 -- purge_message ------------------------------------------------------------------
 -- Recipient's 30s timer, and the sender's manual delete button.
-create function public.purge_message(msg uuid)
+create or replace function public.purge_message(msg uuid)
 returns void
 language sql
 security definer
@@ -70,7 +75,7 @@ as $$
 $$;
 
 -- request_conversation ------------------------------------------------------------------
-create function public.request_conversation(other_username text)
+create or replace function public.request_conversation(other_username text)
 returns uuid
 language plpgsql
 security definer
@@ -105,7 +110,7 @@ end;
 $$;
 
 -- respond_to_request ------------------------------------------------------------------
-create function public.respond_to_request(conversation uuid, accept boolean)
+create or replace function public.respond_to_request(conversation uuid, accept boolean)
 returns void
 language plpgsql
 security definer
@@ -142,7 +147,7 @@ $$;
 
 -- leave_conversation ------------------------------------------------------------------
 -- Either participant, any time. Ends the thread and wipes every message in it.
-create function public.leave_conversation(conversation uuid)
+create or replace function public.leave_conversation(conversation uuid)
 returns void
 language plpgsql
 security definer

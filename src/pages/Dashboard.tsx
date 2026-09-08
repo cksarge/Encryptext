@@ -47,7 +47,13 @@ export function Dashboard() {
   return (
     <div className="flex h-[100dvh] flex-col">
       <header className="flex h-14 items-center justify-between border-b border-border px-4">
-        <Logo />
+        <a
+          href="/app"
+          className="rounded-md transition hover:opacity-80"
+          title="Reload Encryptext"
+        >
+          <Logo />
+        </a>
         <div className="relative flex items-center gap-1">
           <Button
             size="sm"
