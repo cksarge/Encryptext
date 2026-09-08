@@ -1,6 +1,6 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
-const SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY
+const SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY?.trim()
 const SCRIPT_SRC =
   'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit'
 
@@ -10,8 +10,9 @@ interface TurnstileApi {
     opts: {
       sitekey: string
       theme?: 'auto' | 'light' | 'dark'
+      retry?: 'auto' | 'never'
       callback: (token: string) => void
-      'error-callback'?: () => void
+      'error-callback'?: (code?: string) => void
       'expired-callback'?: () => void
     },
   ) => string
@@ -39,7 +40,7 @@ function loadScript(): Promise<void> {
     script.async = true
     script.defer = true
     script.onload = () => resolve()
-    script.onerror = () => reject(new Error('Turnstile failed to load'))
+    script.onerror = () => reject(new Error('Turnstile script failed to load'))
     document.head.appendChild(script)
   })
   return scriptPromise
@@ -75,6 +76,7 @@ export function Turnstile({
   const containerRef = useRef<HTMLDivElement>(null)
   const widgetId = useRef<string | null>(null)
   const reportRef = useRef(onToken)
+  const [errorCode, setErrorCode] = useState<string | null>(null)
 
   useEffect(() => {
     reportRef.current = onToken
@@ -88,15 +90,34 @@ export function Turnstile({
     loadScript()
       .then(() => {
         if (cancelled || !containerRef.current || !window.turnstile) return
-        widgetId.current = window.turnstile.render(containerRef.current, {
-          sitekey: SITE_KEY,
-          theme: 'auto',
-          callback: (token) => report(token),
-          'error-callback': () => report(null),
-          'expired-callback': () => report(null),
-        })
+        try {
+          widgetId.current = window.turnstile.render(containerRef.current, {
+            sitekey: SITE_KEY,
+            theme: 'auto',
+            retry: 'auto',
+            callback: (token) => {
+              setErrorCode(null)
+              report(token)
+            },
+            'error-callback': (code) => {
+              // eslint-disable-next-line no-console
+              console.error('[Turnstile] error', code, 'on', window.location.hostname)
+              setErrorCode(code ?? 'unknown')
+              report(null)
+            },
+            'expired-callback': () => report(null),
+          })
+        } catch (err) {
+          console.error('[Turnstile] render threw', err)
+          setErrorCode('render-failed')
+          report(null)
+        }
       })
-      .catch(() => report(null))
+      .catch((err) => {
+        console.error('[Turnstile]', err)
+        setErrorCode('script-blocked')
+        report(null)
+      })
 
     return () => {
       cancelled = true
@@ -113,10 +134,18 @@ export function Turnstile({
 
   if (!SITE_KEY) return null
   return (
-    <div
-      ref={containerRef}
-      className="mt-2 flex min-h-[65px] justify-center"
-      aria-label="Cloudflare Turnstile challenge"
-    />
+    <div className="mt-2 flex flex-col items-center gap-1">
+      <div
+        ref={containerRef}
+        className="flex min-h-[65px] justify-center"
+        aria-label="Cloudflare Turnstile challenge"
+      />
+      {errorCode && (
+        <p className="text-center text-xs text-danger">
+          Turnstile error <code>{errorCode}</code>. Check the browser console for
+          details.
+        </p>
+      )}
+    </div>
   )
 }
