@@ -297,7 +297,7 @@ export async function safetyNumber(
   const utility = new Olm.Utility()
   try {
     const [lo, hi] = [signingKeyA, signingKeyB].sort()
-    const digest = utility.sha256(`encryptext:v1:${lo}:${hi}`)
+    const digest = utility.sha256(`encryptext:v2:${lo}:${hi}`)
     const digits = Array.from(digest)
       .map((ch) => ch.charCodeAt(0) % 10)
       .join('')

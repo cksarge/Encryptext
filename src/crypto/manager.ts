@@ -362,19 +362,29 @@ export async function rememberSent(entry: {
   await cacheMessage(entry)
 }
 
-/** Symmetric fingerprint between this device and the peer's first device. */
+/**
+ * Symmetric fingerprint for a pair of users. Computed over the sorted set of
+ * *every* live device signing-key each user has, so both sides produce the same
+ * string no matter which of their devices they run it on.
+ */
 export async function safetyNumberWith(peerUserId: string): Promise<string | null> {
   if (!identity) return null
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('devices')
-    .select('signing_key')
-    .eq('user_id', peerUserId)
+    .select('user_id, signing_key')
+    .in('user_id', [identity.userId, peerUserId])
     .is('revoked_at', null)
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .maybeSingle()
-  if (!data) return null
-  return safetyNumber(identity.signingKey, data.signing_key)
+  if (error || !data || data.length === 0) return null
+
+  const keyBlob = (uid: string) =>
+    [...new Set(data.filter((d) => d.user_id === uid).map((d) => d.signing_key))]
+      .sort()
+      .join('|')
+
+  const mine = keyBlob(identity.userId)
+  const theirs = keyBlob(peerUserId)
+  if (!mine || !theirs) return null
+  return safetyNumber(mine, theirs)
 }
 
 /** Wipe this browser's keys entirely. History encrypted to it becomes unreadable. */
