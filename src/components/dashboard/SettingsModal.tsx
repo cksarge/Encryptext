@@ -181,7 +181,10 @@ export function SettingsModal({
                 <span className="hidden group-hover:inline">Turn off?</span>
               </>
             ) : (
-              'Turn on'
+              <>
+                <span className="group-hover:hidden">Off</span>
+                <span className="hidden group-hover:inline">Turn on?</span>
+              </>
             )}
           </Button>
         </section>
