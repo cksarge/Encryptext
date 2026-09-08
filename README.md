@@ -77,6 +77,25 @@ npm run dev
 - Try to insert a third `conversation_participants` row via SQL — the trigger
   rejects it (no groups).
 
+## Deploying to Vercel
+
+Static build, framework preset **Vite**, output `dist/`. `vercel.json` rewrites
+every unmatched path to `index.html` so client-side routes (`/security`,
+`/auth/confirm`, …) survive a refresh.
+
+1. **Environment Variables** (Project Settings → Environment Variables — set for
+   Production *and* Preview): `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`,
+   `VITE_TURNSTILE_SITE_KEY`, and while testing without SMTP
+   `VITE_SKIP_EMAIL_CONFIRM=true`. **Vite inlines these at build time — redeploy
+   after any change.**
+2. **Supabase → Authentication → URL Configuration:** set Site URL to your Vercel
+   URL and add it (plus `https://<domain>/**`) to the redirect allow-list.
+3. **Cloudflare Turnstile widget → Hostnames:** add your Vercel domain. Preview
+   URLs change per deploy, so test on the stable production domain or a custom
+   domain. Put the Turnstile **secret key** in Supabase → Authentication → Attack
+   Protection (never in the frontend env).
+4. HTTPS is automatic, so passkeys and notifications work.
+
 ## Legal
 
 `/terms` and `/privacy` hold draft Terms of Service and a Privacy Policy. They
