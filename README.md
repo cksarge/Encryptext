@@ -46,7 +46,7 @@ npm run dev
 1. Create a project. In the SQL editor, run the files in
    [`supabase/migrations`](supabase/migrations) **in order** (`0001` → `0004`).
    `0004` needs the `pg_cron` extension (Database → Extensions → enable
-   `pg_cron`), and runs the once-a-minute expiry sweep.
+   `pg_cron`), and schedules the expiry sweep (every 10 seconds).
 2. **Auth → Providers → Email:** turn *Confirm email* on.
    *Testing without SMTP:* turn *Confirm email* **off** instead, and set
    `VITE_SKIP_EMAIL_CONFIRM=true` in `.env.local` — sign-up then goes straight to
@@ -70,10 +70,10 @@ npm run dev
 - In the SQL editor, inspect `messages` and `message_payloads` — only ciphertext,
   no plaintext, no preview.
 - Read a message as the recipient; watch the row disappear from both tables
-  within ~30s. Close the tab right after reading and confirm the 1-minute
-  `pg_cron` sweep still removes it.
-- Send a message the recipient never opens; confirm it survives the 1-minute
-  sweep but is gone once it is 24 hours old.
+  within ~30s. Close the tab right after reading and confirm the `pg_cron` sweep
+  still removes it within ~40s.
+- Send a message the recipient never opens; confirm it survives the sweep but is
+  gone once it is 24 hours old.
 - Try to insert a third `conversation_participants` row via SQL — the trigger
   rejects it (no groups).
 

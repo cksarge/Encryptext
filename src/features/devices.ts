@@ -47,14 +47,22 @@ export function useRevokeDevice() {
     mutationFn: async (id: string) => {
       if (id === currentDevice()?.deviceId) {
         throw new Error(
-          'That is this device. Use “Forget this device” in settings instead.',
+          'That is this device. Use “Forget this device” below instead.',
         )
       }
-      const { error } = await supabase
+      // Hard delete so it leaves the list immediately and can never be used
+      // again. `.select()` lets us tell a real deletion from an RLS no-op.
+      const { data, error } = await supabase
         .from('devices')
-        .update({ revoked_at: new Date().toISOString() })
+        .delete()
         .eq('id', id)
+        .select('id')
       if (error) throw error
+      if (!data || data.length === 0) {
+        throw new Error(
+          'Could not remove that device — it may already be gone, or you don’t have permission.',
+        )
+      }
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: KEY }),
   })

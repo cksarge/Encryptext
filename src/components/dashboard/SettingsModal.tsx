@@ -120,15 +120,31 @@ export function SettingsModal({
                   </div>
                   {d.id !== thisDeviceId && !d.synthetic && (
                     <button
-                      className="shrink-0 text-xs text-danger hover:underline"
-                      onClick={() => revoke.mutate(d.id)}
+                      className="shrink-0 text-xs text-danger hover:underline disabled:opacity-50"
+                      disabled={revoke.isPending}
+                      onClick={() => {
+                        if (
+                          confirm(
+                            `Remove “${d.label}”? It won’t be able to send or read messages for this account again.`,
+                          )
+                        ) {
+                          revoke.mutate(d.id)
+                        }
+                      }}
                     >
-                      Revoke
+                      {revoke.isPending ? 'Removing…' : 'Remove'}
                     </button>
                   )}
                 </li>
               ))}
             </ul>
+          )}
+          {revoke.isError && (
+            <p className="mt-1 text-xs text-danger">
+              {revoke.error instanceof Error
+                ? revoke.error.message
+                : 'Could not remove that device.'}
+            </p>
           )}
           {devices.isError && (
             <p className="mt-1 text-xs text-danger">
