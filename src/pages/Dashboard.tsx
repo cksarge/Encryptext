@@ -21,7 +21,7 @@ import { SettingsModal } from '@/components/dashboard/SettingsModal'
 import { Thread } from '@/components/dashboard/Thread'
 
 export function Dashboard() {
-  const { profile, deviceReady, signOut } = useAuth()
+  const { profile, deviceReady, deviceError, retryDevice, signOut } = useAuth()
   const conversations = useConversations()
   const [activeId, setActiveId] = useState<string | null>(null)
   const [newOpen, setNewOpen] = useState(false)
@@ -141,11 +141,21 @@ export function Dashboard() {
               </>
             )}
           </div>
-          {!deviceReady && (
+          {!deviceReady && deviceError ? (
+            <div className="border-t border-border px-4 py-2 text-xs">
+              <p className="text-danger">{deviceError}</p>
+              <button
+                onClick={retryDevice}
+                className="mt-1 font-medium text-primary hover:underline"
+              >
+                Try again
+              </button>
+            </div>
+          ) : !deviceReady ? (
             <p className="border-t border-border px-4 py-2 text-xs text-muted-foreground">
               Setting up this device’s keys…
             </p>
-          )}
+          ) : null}
         </aside>
 
         <main className={cn('min-w-0', active ? 'block' : 'hidden lg:block')}>
