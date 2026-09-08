@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { ArrowRight, Eye, KeyRound, ServerOff, Timer } from 'lucide-react'
+import { useAuth } from '@/auth/AuthProvider'
 import { SiteHeader } from '@/components/SiteHeader'
 import { Logo } from '@/components/Logo'
 import { Copyright } from '@/components/Copyright'
@@ -31,6 +32,8 @@ const points = [
 ]
 
 export function Landing() {
+  const { user } = useAuth()
+
   return (
     <div className="min-h-screen">
       <SiteHeader />
@@ -56,10 +59,11 @@ export function Landing() {
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <Link
-              to="/auth?mode=signup"
+              to={user ? '/app' : '/auth?mode=signup'}
               className={buttonClass('primary', 'lg')}
             >
-              Get started <ArrowRight className="size-4" />
+              {user ? 'Open Encryptext' : 'Get started'}{' '}
+              <ArrowRight className="size-4" />
             </Link>
             <Link
               to="/security"
@@ -128,8 +132,11 @@ export function Landing() {
             <Link to="/privacy" className="hover:text-foreground">
               Privacy
             </Link>
-            <Link to="/auth?mode=login" className="hover:text-foreground">
-              Log in
+            <Link
+              to={user ? '/app' : '/auth?mode=login'}
+              className="hover:text-foreground"
+            >
+              {user ? 'Dashboard' : 'Log in'}
             </Link>
           </div>
         </div>
