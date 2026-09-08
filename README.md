@@ -96,6 +96,31 @@ every unmatched path to `index.html` so client-side routes (`/security`,
    Protection (never in the frontend env).
 4. HTTPS is automatic, so passkeys and notifications work.
 
+## Background push notifications (optional)
+
+Foreground notifications work with no setup. To also alert users when Encryptext
+is **closed** (desktop Chrome / Edge / Firefox / Safari — no PWA needed):
+
+1. `npx web-push generate-vapid-keys` → you get a public and a private key.
+2. **Public key** → `VITE_VAPID_PUBLIC_KEY` in `.env.local` **and** on Vercel;
+   redeploy.
+3. Deploy the Edge Function:
+   `supabase functions deploy push --no-verify-jwt`
+4. Set its secrets:
+   ```
+   supabase secrets set \
+     VAPID_PUBLIC_KEY=<public> VAPID_PRIVATE_KEY=<private> \
+     VAPID_SUBJECT=mailto:you@example.com \
+     PUSH_HOOK_SECRET=<random string>
+   ```
+5. **Dashboard → Database → Webhooks → Create**: table `messages`, event
+   `Insert`, type *Supabase Edge Functions → push*, and add an HTTP header
+   `Authorization: Bearer <PUSH_HOOK_SECRET>`.
+
+A "Push notifications" toggle then appears in Settings *once foreground
+notifications are on*. It is per-device. Payloads carry a sender `@handle` and a
+generic line — never message text (the function only ever sees ciphertext).
+
 ## Legal
 
 `/terms` and `/privacy` hold draft Terms of Service and a Privacy Policy. They
@@ -105,10 +130,8 @@ law) before launch. Sign-up requires ticking two boxes to agree to both.
 
 ## Not in v1
 
-Background Web Push (needs a Service Worker + VAPID + the `push_subscriptions`
-table + one Edge Function), passphrase-encrypted key backup, and group chats.
-Notifications today are foreground-only, driven by the existing Realtime
-subscriptions, and never contain message text.
+Passphrase-encrypted key backup, group chats, and background push on iOS Safari
+(that one needs a PWA install + manifest).
 
 Server-side verification of the Cloudflare Turnstile token (in a Supabase Auth
 hook or Edge Function) still needs wiring up; the widget and client gating are in

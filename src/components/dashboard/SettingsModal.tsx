@@ -17,6 +17,7 @@ import {
   passkeyEmail,
   registerPasskey,
 } from '@/auth/passkey'
+import { disablePush, enablePush, pushEnabled, pushSupported } from '@/features/push'
 import { Button } from '@/components/ui/primitives'
 import { Copyright } from '@/components/Copyright'
 import { Modal } from '@/components/ui/Modal'
@@ -50,10 +51,34 @@ export function SettingsModal({
   const [notifOn, setNotifOn] = useState(notificationsEnabled())
   const [passkeySupported, setPasskeySupported] = useState(false)
   const [passkeySaved, setPasskeySaved] = useState(hasPasskey())
+  const [pushOn, setPushOn] = useState(false)
+  const [pushBusy, setPushBusy] = useState(false)
 
   useEffect(() => {
     void isPasskeySupported().then(setPasskeySupported)
+    void pushEnabled().then(setPushOn)
   }, [])
+
+  const togglePush = async () => {
+    setPushBusy(true)
+    try {
+      if (pushOn) {
+        await disablePush()
+        setPushOn(false)
+      } else {
+        await enablePush()
+        setPushOn(true)
+      }
+    } catch (err) {
+      alert(
+        err instanceof Error
+          ? err.message
+          : 'Could not change background notifications.',
+      )
+    } finally {
+      setPushBusy(false)
+    }
+  }
 
   const addPasskey = () => {
     void registerPasskey()
@@ -76,6 +101,8 @@ export function SettingsModal({
     if (notifOn) {
       setNotificationsPreference(false)
       setNotifOn(false)
+      void disablePush()
+      setPushOn(false)
     } else {
       setNotifOn(await requestNotifications())
     }
@@ -188,6 +215,37 @@ export function SettingsModal({
             )}
           </Button>
         </section>
+
+        {notifOn && pushSupported() && (
+          <section className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <h3 className="font-medium">Push notifications</h3>
+              <p className="text-xs text-muted-foreground">
+                Alerts on this device even when Encryptext is closed. Desktop
+                Chrome, Edge, Firefox, Safari.
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant={pushOn ? 'secondary' : 'primary'}
+              loading={pushBusy}
+              onClick={togglePush}
+              className="group min-w-[5.25rem] shrink-0"
+            >
+              {pushOn ? (
+                <>
+                  <span className="group-hover:hidden">On</span>
+                  <span className="hidden group-hover:inline">Turn off?</span>
+                </>
+              ) : (
+                <>
+                  <span className="group-hover:hidden">Off</span>
+                  <span className="hidden group-hover:inline">Turn on?</span>
+                </>
+              )}
+            </Button>
+          </section>
+        )}
 
         {passkeySupported && (
           <section className="flex items-center justify-between gap-3">

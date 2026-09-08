@@ -9,6 +9,7 @@ import {
   notificationsPrompted,
   requestNotifications,
 } from '@/features/notifications'
+import { syncPush } from '@/features/push'
 import { cn } from '@/lib/utils'
 import { Logo } from '@/components/Logo'
 import { Button, Spinner } from '@/components/ui/primitives'
@@ -43,6 +44,11 @@ export function Dashboard() {
     const hasActive = list.some((c) => c.status === 'active')
     if (hasActive && !notificationsPrompted()) setShowNotifPrompt(true)
   }, [list])
+
+  // Re-assert this device's push subscription (endpoints rotate). Never prompts.
+  useEffect(() => {
+    void syncPush()
+  }, [])
 
   return (
     <div className="flex h-[100dvh] flex-col">

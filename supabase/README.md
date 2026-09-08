@@ -25,3 +25,13 @@ supabase db push
   `supabase_realtime` publication. Make sure Realtime is enabled for the project.
 - After changing the schema, regenerate `src/types/db.ts`:
   `supabase gen types typescript --linked > src/types/db.generated.ts`.
+
+## Edge function: `functions/push`
+
+Optional — sends a Web Push when a message is inserted, so users get alerts
+while Encryptext is closed. Setup is in the top-level README ("Background push
+notifications"). In short: `supabase functions deploy push --no-verify-jwt`, set
+the `VAPID_*` + `PUSH_HOOK_SECRET` secrets, and add a Database Webhook on
+`messages` INSERT that calls it with an `Authorization: Bearer <PUSH_HOOK_SECRET>`
+header. It uses the service role (injected automatically) to read
+`push_subscriptions`, and prunes dead endpoints on 404/410.
