@@ -51,6 +51,18 @@ export function isTurnstileEnabled(): boolean {
 }
 
 /**
+ * Turnstile tokens are single-use. Call this after every auth attempt so the
+ * next submit gets a fresh token.
+ */
+export function resetTurnstile(): void {
+  try {
+    window.turnstile?.reset()
+  } catch {
+    /* widget not mounted */
+  }
+}
+
+/**
  * Renders the Cloudflare Turnstile widget at the bottom of an auth form. Reports
  * the token (or null when it errors/expires) via `onToken`. Renders nothing
  * until `VITE_TURNSTILE_SITE_KEY` is set.

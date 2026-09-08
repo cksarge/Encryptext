@@ -3,10 +3,20 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Check, Fingerprint, Loader2, X } from 'lucide-react'
 import { AuthCard } from '@/components/AuthCard'
 import { Button, FieldError, Input, Label } from '@/components/ui/primitives'
-import { Turnstile, isTurnstileEnabled } from '@/components/Turnstile'
+import {
+  Turnstile,
+  isTurnstileEnabled,
+  resetTurnstile,
+} from '@/components/Turnstile'
 import { supabase } from '@/lib/supabase'
 import { emailFlowsDisabled } from '@/lib/site'
-import { cn, isValidUsername, normalizeUsername } from '@/lib/utils'
+import {
+  cn,
+  isValidPassword,
+  isValidUsername,
+  normalizeUsername,
+  passwordChecks,
+} from '@/lib/utils'
 import {
   hasPasskey,
   loginWithPasskey,
@@ -96,8 +106,12 @@ function LoginForm() {
     const { error: err } = await supabase.auth.signInWithPassword({
       email: email.trim(),
       password,
+      options: captcha ? { captchaToken: captcha } : undefined,
     })
     setBusy(null)
+    // Turnstile tokens are single-use — clear it whatever the outcome.
+    resetTurnstile()
+    setCaptcha(null)
     if (!err) {
       navigate('/app', { replace: true })
       return
@@ -207,7 +221,7 @@ function SignupForm() {
   const onCaptcha = useCallback((t: string | null) => setCaptcha(t), [])
 
   const usernameState = useUsernameAvailability(username)
-  const passwordOk = password.length >= 8
+  const passwordOk = isValidPassword(password)
   const captchaOk = !isTurnstileEnabled() || Boolean(captcha)
   const canSubmit =
     usernameState.status === 'available' &&
@@ -230,6 +244,7 @@ function SignupForm() {
       email: email.trim(),
       password,
       options: {
+        captchaToken: captcha ?? undefined,
         data: {
           username: normalizeUsername(username),
           display_name: displayName.trim(),
@@ -237,6 +252,9 @@ function SignupForm() {
       },
     })
     setBusy(false)
+    // Turnstile tokens are single-use — clear it whatever the outcome.
+    resetTurnstile()
+    setCaptcha(null)
     if (err) {
       setError(err.message)
       return
@@ -282,18 +300,7 @@ function SignupForm() {
           onChange={(e) => setPassword(e.target.value)}
           className="mt-1.5"
         />
-        <p
-          className={cn(
-            'mt-1 text-xs',
-            password.length === 0
-              ? 'text-muted-foreground'
-              : passwordOk
-                ? 'text-success'
-                : 'text-danger',
-          )}
-        >
-          At least 8 characters.
-        </p>
+        <PasswordRules password={password} />
       </div>
 
       <div>
@@ -380,6 +387,47 @@ function SignupForm() {
 
       <Turnstile onToken={onCaptcha} />
     </form>
+  )
+}
+
+const PASSWORD_RULES: { key: keyof ReturnType<typeof passwordChecks>; label: string }[] =
+  [
+    { key: 'length', label: 'At least 8 characters' },
+    { key: 'lower', label: 'A lowercase letter' },
+    { key: 'upper', label: 'An uppercase letter' },
+    { key: 'digit', label: 'A number' },
+    { key: 'symbol', label: 'A symbol' },
+  ]
+
+function PasswordRules({ password }: { password: string }) {
+  const checks = passwordChecks(password)
+  const touched = password.length > 0
+  return (
+    <ul className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+      {PASSWORD_RULES.map(({ key, label }) => {
+        const met = checks[key]
+        return (
+          <li
+            key={key}
+            className={cn(
+              'flex items-center gap-1.5',
+              met
+                ? 'text-success'
+                : touched
+                  ? 'text-danger'
+                  : 'text-muted-foreground',
+            )}
+          >
+            {met ? (
+              <Check className="size-3.5 shrink-0" />
+            ) : (
+              <X className="size-3.5 shrink-0" />
+            )}
+            {label}
+          </li>
+        )
+      })}
+    </ul>
   )
 }
 

@@ -32,6 +32,29 @@ export function base64ToBytes(base64: string): Uint8Array<ArrayBuffer> {
 
 const USERNAME_RE = /^[a-z0-9_]{3,20}$/
 
+export interface PasswordChecks {
+  length: boolean
+  lower: boolean
+  upper: boolean
+  digit: boolean
+  symbol: boolean
+}
+
+/** Mirrors the Supabase project's password policy so the user sees it up front. */
+export function passwordChecks(pw: string): PasswordChecks {
+  return {
+    length: pw.length >= 8,
+    lower: /[a-z]/.test(pw),
+    upper: /[A-Z]/.test(pw),
+    digit: /\d/.test(pw),
+    symbol: /[^A-Za-z0-9]/.test(pw),
+  }
+}
+
+export function isValidPassword(pw: string): boolean {
+  return Object.values(passwordChecks(pw)).every(Boolean)
+}
+
 /** Client-side mirror of the DB constraint. UX only; the DB is the real guard. */
 export function normalizeUsername(raw: string): string {
   return raw.trim().toLowerCase()
