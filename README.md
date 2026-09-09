@@ -113,9 +113,10 @@ is **closed** (desktop Chrome / Edge / Firefox / Safari — no PWA needed):
      VAPID_SUBJECT=mailto:you@example.com \
      PUSH_HOOK_SECRET=<random string>
    ```
-5. **Dashboard → Database → Webhooks → Create**: table `messages`, event
-   `Insert`, type *Supabase Edge Functions → push*, and add an HTTP header
-   `Authorization: Bearer <PUSH_HOOK_SECRET>`.
+5. Run `supabase/migrations/0005_push_trigger.sql` in the SQL Editor after
+   replacing the `<PROJECT_URL>` and `<PUSH_HOOK_SECRET>` placeholders. (This is
+   the same thing the dashboard's "Database Webhooks" page does — use whichever
+   you can find.)
 
 A "Push notifications" toggle then appears in Settings *once foreground
 notifications are on*. It is per-device. Payloads carry a sender `@handle` and a
