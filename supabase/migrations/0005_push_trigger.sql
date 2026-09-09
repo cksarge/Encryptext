@@ -19,18 +19,24 @@ security definer
 set search_path = public
 as $$
 begin
-  perform net.http_post(
-    url     := '<PROJECT_URL>/functions/v1/push',
-    headers := jsonb_build_object(
-      'Content-Type',  'application/json',
-      'Authorization', 'Bearer <PUSH_HOOK_SECRET>'
-    ),
-    body    := jsonb_build_object(
-      'type',   'INSERT',
-      'table',  'messages',
-      'record', to_jsonb(new)
-    )
-  );
+  -- A push dispatch failure must never roll back the message insert.
+  begin
+    perform net.http_post(
+      url     := '<PROJECT_URL>/functions/v1/push',
+      headers := jsonb_build_object(
+        'Content-Type',  'application/json',
+        'Authorization', 'Bearer <PUSH_HOOK_SECRET>'
+      ),
+      body    := jsonb_build_object(
+        'type',   'INSERT',
+        'table',  'messages',
+        'record', to_jsonb(new)
+      )
+    );
+  exception
+    when others then
+      raise warning 'push dispatch failed: %', sqlerrm;
+  end;
   return new;
 end;
 $$;
